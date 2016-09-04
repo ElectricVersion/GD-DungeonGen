@@ -1,16 +1,12 @@
 extends TileMap
 
 export var world_seed = 128
-export var world_size = 16
+export var world_size = 32
 export var room_count = 4
 export var min_room_size = 4
 export var max_room_size = 6
-export var room_ratio_variance_max = 1.1
-export var room_ratio_variance_min = 0.9
 export var scale = 2
 export var hallway_thickness = 1
-export var max_hallway_length = 4
-export var min_hallway_length = 2
 export var padding = 1
 
 var room_data = {}
