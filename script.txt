@@ -1,0 +1,103 @@
+extends TileMap
+
+export var world_seed = 128
+export var world_size = 16
+export var room_count = 4
+export var min_room_size = 4
+export var max_room_size = 6
+export var room_ratio_variance_max = 1.1
+export var room_ratio_variance_min = 0.9
+export var scale = 2
+export var hallway_thickness = 1
+export var max_hallway_length = 4
+export var min_hallway_length = 2
+export var padding = 1
+
+var room_data = {}
+
+func randi_range(a, b, inclusive = true):
+	if inclusive:
+		b += 1 
+	return floor(rand_range(a, b))
+
+func randb():
+	if randf()>=0.5:
+		return true
+	else:
+		return false
+
+func get_wall(rect, direction):
+	if direction == 0: #north
+		return {x1=rect.pos.x, y1=rect.pos.y, x2=rect.end.x, y2=rect.pos.y}
+	elif direction == 1:
+		return {x1=rect.end.x, y1=rect.pos.y, x2=rect.end.x, y2=rect.end.y}
+	elif direction == 2:
+		return {x1=rect.pos.x, y1=rect.end.y, x2=rect.end.x, y2=rect.end.y}
+	elif direction == 3:
+		return {x1=rect.pos.x, y1=rect.pos.y, x2=rect.pos.x, y2=rect.end.y}
+
+func set_tile(x, y, tile_type, overwrite = false):
+	x = round(x)
+	y = round(y)
+	if overwrite or get_cell(x*scale, y*scale) == INVALID_CELL:
+		for t_iy in range(y*scale, (y*scale)+scale):
+			for t_ix in range(x*scale, (x*scale)+scale):
+				set_cell(t_ix, t_iy, tile_type)
+
+func fill(a, b, tile_type, overwrite = true):
+	for t_iy in range(floor(min(a.y, b.y)), floor(max(a.y, b.y))):
+		for t_ix in range(floor(min(a.x, b.x)), floor(max(a.x, b.x))):
+				set_tile(t_ix, t_iy, tile_type, overwrite)
+
+func generate_room():
+	var w = randi_range(min_room_size, max_room_size, true)
+	var h = randi_range(min_room_size, max_room_size, true)
+	var x = randi_range(0, world_size-w)
+	var y = randi_range(0, world_size-h)
+	var this_room = Rect2(x,y,w,h)
+	var valid_room = true
+	for i in room_data: # check if it overlaps any existing rooms
+		if this_room.intersects(room_data[i].rect.grow(padding)):
+			valid_room = false
+	if valid_room: #if the room was made
+		room_data[room_data.size()]={accessible = false, rect = this_room, hallways = 0}
+		fill(this_room.pos, this_room.end, 0)
+
+func rect_center(rect):
+	return rect.pos + (rect.size/2)
+
+func make_hallway(point1, point2):
+	var min_point = Vector2(min(point1.x, point2.x), min(point1.y, point2.y))
+	var max_point = Vector2(max(point1.x, point2.x), max(point1.y, point2.y))
+	var half_thickness = hallway_thickness/2.0
+	fill(Vector2(point1.x-half_thickness, point1.y), Vector2(point1.x+half_thickness, point2.y), 2)
+	fill(Vector2(point1.x-half_thickness, point2.y-half_thickness), Vector2(point1.x+half_thickness, point2.y+half_thickness), 2)
+	fill(Vector2(point1.x, point2.y-half_thickness), Vector2(point2.x, point2.y+half_thickness), 2)
+
+func _ready():
+	seed(world_seed)
+	for i in range(0,20):
+		generate_room()
+	room_data[0].accessible=true # the starting room is accessible of course
+	var room1
+	var room2
+	#make sure every room is connected
+	for room1i in room_data:
+		room1 = room_data[room1i]
+		room2 = {}
+		if !room1.accessible:
+			# find the nearest room
+			var room1_center = rect_center(room1.rect)
+			var nearest_room = -1 # the index of the nearest room
+			var least_distance = 0
+			for room2i in room_data:
+				room2 = room_data[room2i]
+				if room2.accessible and room2i != room1i:
+					if room1_center.distance_to(rect_center(room2.rect)) < least_distance or nearest_room == -1:
+						least_distance = room1_center.distance_to(rect_center(room2.rect))
+						nearest_room = room2i
+			# now make a hallway to the nearest room
+			if nearest_room != -1:
+				make_hallway(room1_center, rect_center(room_data[nearest_room].rect))
+				room_data[room1i].accessible = true
+	
